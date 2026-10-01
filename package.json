@@ -3,29 +3,37 @@
   "private": true,
   "type": "module",
   "overrides": {
-    "@effect/platform-node-shared": "4.0.0"
+    "@effect/platform-node-shared": "4.0.0",
+    "wrangler": "4.103.0"
   },
   "packageManager": "bun@1.4.2",
   "scripts": {
     "build": "vp run -r build",
     "dev": "vp run -r --parallel --no-cache dev",
-    "type-check": "vp run -r type-check",
+    "type-check": "vp run -r type-check && bun run type-check:infra",
     "clean": "vp cache clean && vp run --no-cache --filter \"./apps/*\" --filter \"./packages/*\" clean && git clean -xdf node_modules .cache dist tsconfig.tsbuildinfo",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "vp lint",
     "lint:fix": "vp lint --fix",
     "test": "vp run -r test",
-    "prepare": "effect-tsgo patch --oxlint"
+    "prepare": "effect-tsgo patch --oxlint",
+    "deploy": "alchemy deploy --stage production",
+    "dev:worker": "alchemy dev --stage development",
+    "type-check:infra": "tsc --project tsconfig.infra.json --noEmit",
+    "dev:worker:offline": "wrangler dev apps/server-mcp/src/worker.ts --name min-mcp-server-worker --local --port 9010 --compatibility-date 2026-06-17 --var MCP_ALLOWED_ORIGINS:http://localhost:3000"
   },
   "devDependencies": {
-    "vite-plus": "0.3.0",
+    "@effect/tsgo": "0.38.0",
+    "alchemy": "0.94.0",
     "oxfmt": "^0.65.0",
     "oxlint": "1.80.0",
     "oxlint-tsgolint": "7.0.2001",
+    "typescript": "7.0.2",
+    "vite-plus": "0.3.0",
     "vitest": "^4.1.11",
-    "@effect/tsgo": "0.38.0",
-    "typescript": "7.0.2"
+    "wrangler": "4.103.0",
+    "@types/bun": "^1.2.17"
   },
   "engines": {
     "node": ">=24"

@@ -2,6 +2,7 @@ import { BunHttpServer, BunRuntime } from "@effect/platform-bun";
 import { Config, Effect, Layer } from "effect";
 import { McpProtocol, McpServer } from "effect/ai";
 import { HttpRouter, HttpServer } from "effect/http";
+import { McpCapabilities } from "./capabilities.js";
 
 export const McpServerConfig = Config.all({
   port: Config.Number("MCP_PORT").pipe(Config.withDefault(9009)),
@@ -10,11 +11,6 @@ export const McpServerConfig = Config.all({
     Config.withDefault("http://localhost:3000"),
   ),
 });
-
-// NOTE: Modules append tools, prompts, and resources to this layer.
-const McpCapabilities = Layer.mergeAll(Layer.empty).pipe(
-  Layer.satisfiesServicesType<never>(),
-);
 
 const McpHttpLive = Effect.gen(function* () {
   const config = yield* McpServerConfig;

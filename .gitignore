@@ -32,3 +32,7 @@ test-results
 result
 result-*
 .direnv/
+
+# deployment state and local Worker data
+.alchemy/
+.wrangler/

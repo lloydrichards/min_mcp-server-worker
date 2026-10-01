@@ -9,6 +9,14 @@ export default defineConfig({
     },
     overrides: [
       {
+        files: ["alchemy.run.ts"],
+        // Alchemy v1 runs as an async script outside the Effect server runtime.
+        rules: {
+          "effecttsgo/global-console": "off",
+          "effecttsgo/process-env": "off",
+        },
+      },
+      {
         files: ["**/*.test.ts", "**/*.test.tsx"],
         rules: {
           "effecttsgo/async-function": "off",
