@@ -1,80 +1,74 @@
-# Deploy the MCP server to Cloudflare
+# Effect MCP subscriptions on Cloudflare Workers
 
-This Stack Effect project has a Bun server and a Cloudflare Worker entry. Both use `apps/server-mcp/src/capabilities.ts` for tools, prompts, and resources. The initial server has no registered tools or resources.
+This repo reproduces [Effect issue #8651](https://github.com/Effect-TS/effect/issues/8651) and tests a candidate fix with a Bun patch.
 
-## Prepare the development environment
+An idle `subscriptions/listen` request sends its acknowledgement, then Cloudflare closes the stream almost immediately. Local workerd reports:
+
+```text
+The Workers runtime canceled this request because it detected that your Worker's code had hung and would never generate a response.
+```
+
+## What the tests show
+
+The server uses `McpServer.layerHttp`, `McpProtocol.v2026_07_28`, and a `ping` tool. [The fixture](apps/server-mcp/test-fixtures/subscription-worker.ts) compares cached and per-request handlers, SSE heartbeats, and a timer that sends no bytes.
+
+| Test                         | Observed behavior                                                    |
+| ---------------------------- | -------------------------------------------------------------------- |
+| Unpatched subscriptions      | Acknowledged, then closed within 36 to 72 ms                         |
+| SSE heartbeat comments       | Stayed open for the full test                                        |
+| Timer with no outgoing bytes | Also stayed open for the full test                                   |
+| Effect transport patch       | Stayed open for 32 seconds locally and on Cloudflare; two heartbeats |
+
+The timer-only result points to Cloudflare's event-loop liveness check. Effect waits for the next subscription notification without a pending timer or I/O event that can make progress. Caching the HTTP handler does not prevent the failure. See [the investigation and raw measurements](docs/subscriptions-cloudflare.md).
+
+Tested with Effect `4.0.0`, Wrangler `4.103.0`, and compatibility date `2026-06-17`. Alchemy deploys the cloud Workers; the local reproduction uses Wrangler directly and needs no Cloudflare credentials.
+
+## Reproduce the original failure
+
+The baseline commit contains the fixture before the Effect patch. Use a separate checkout:
 
 ```sh
-direnv allow
+git clone https://github.com/lloydrichards/min_mcp-server-worker.git mcp-baseline
+cd mcp-baseline
+git switch --detach 007690f
 bun install --frozen-lockfile
-bun run type-check
-bun run lint
-bun run format:check
+bun wrangler dev apps/server-mcp/test-fixtures/subscription-worker.ts --local --port 9011 --compatibility-date 2026-06-17
 ```
 
-The committed flake lock pins the Nix development environment. `direnv` loads Bun and Node when you enter the project directory.
-
-## Run locally
-
-For the original Bun server at `http://localhost:9009/mcp`, run:
+In another terminal, from that checkout, run:
 
 ```sh
-bun run dev
+python3 scripts/check-subscription.py 'http://localhost:9011/mcp?mode=cached'
 ```
 
-For the Worker without Cloudflare credentials, run:
+Expect an acknowledgement followed by early EOF and the runtime error above. HTTP 200 and curl exit 0 do not mean the subscription stayed open. Repeat with `?mode=per-request` to test the handler construction from the original report.
+
+## Test the candidate fix
+
+`main` includes [a Bun patch](patches/effect@4.0.0.patch) that adds an SSE comment every 15 seconds to subscription responses:
+
+```text
+: keepalive
+
+```
+
+The timer starts before the subscription becomes idle. The comments add no JSON-RPC messages. The response stream owns the heartbeat's lifetime through `Stream.merge` with `haltStrategy: "left"`.
+
+From a checkout of `main`, install dependencies and start the same fixture:
 
 ```sh
-bun run dev:worker:offline
+bun install --frozen-lockfile
+bun wrangler dev apps/server-mcp/test-fixtures/subscription-worker.ts --local --port 9011 --compatibility-date 2026-06-17
 ```
 
-After configuring Cloudflare, `bun run dev:worker` runs Alchemy's development mode. Alchemy requires a Cloudflare profile even for this command.
-
-The Bun entry supports MCP `2025-06-18`. The Worker supports stateless MCP `2026-07-28`. Use a client that supports that revision for the Worker. Older session-based clients need a separate stateful deployment design.
-
-## Connect your Cloudflare account
-
-Run this interactive command and select Cloudflare with OAuth:
+Stop the baseline server first so port 9011 is free. In another terminal, run:
 
 ```sh
-bun alchemy configure
+python3 scripts/check-subscription.py 'http://localhost:9011/mcp?mode=cached' --seconds 32 --expect-open --min-heartbeats 2
 ```
 
-Complete the browser authorization and choose your Cloudflare account. Alchemy stores the profile outside this repository. To refresh the login later, run `bun alchemy login cloudflare`.
+Expect two heartbeat comments, then curl exit 28 when the client ends the test at 32 seconds. The script fails if the server closes early or the heartbeats are absent.
 
-For API-token authentication instead, set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in your shell or an ignored `.env` file. Use an account-scoped token with Workers Scripts edit permission and Account Settings read permission. No zone or DNS permissions are needed for this `workers.dev` deployment. See [Alchemy's Cloudflare authentication guide](https://v1.alchemy.run/guides/cloudflare/).
+The same patch passed on a separate Cloudflare test Worker. Ordinary ping calls still returned `pong`. The original production Worker was left unpatched for comparison. These bounded tests do not establish indefinite stability, timer cleanup in every termination case, or notification delivery across isolates. [Patch details and remaining tests](docs/effect-subscription-patch.md).
 
-## Deploy
-
-After authentication, run:
-
-```sh
-bun run deploy
-```
-
-Alchemy creates the production Worker and prints `mcpUrl`. Connect your compatible MCP client to that URL.
-
-The endpoint is public and has no application authentication. Requests without an `Origin` header are accepted. Browser origins are rejected by default. To permit specific origins, supply a comma-separated list at deployment:
-
-```sh
-MCP_ALLOWED_ORIGINS=http://localhost:3000 bun run deploy
-```
-
-Origin validation does not replace authentication. Add authentication before exposing tools that require private access.
-
-Retain the ignored `.alchemy/` directory between deployments. It records the resources Alchemy owns. Set up shared remote state before adding CI or deploying from another machine. See [the deployment research](docs/alchemy-research.md) for the version choice and limits.
-
-## Check a Worker request
-
-Replace the URL with the local or deployed Worker URL:
-
-```sh
-curl http://localhost:9010/mcp \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Mcp-Protocol-Version: 2026-07-28' \
-  -H 'Mcp-Method: server/discover' \
-  --data '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
-```
-
-The response lists `2026-07-28` in `supportedVersions`. Follow the URL printed by Alchemy if its local port differs.
+For cloud deployment and authentication, see [the deployment guide](docs/deploy.md).
