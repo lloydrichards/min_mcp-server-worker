@@ -1,0 +1,81 @@
+diff --git a/dist/ai/McpServer.js b/dist/ai/McpServer.js
+index b57d043799b2d08c1cc3908ccc4ef46cad6d9810..e915c9aeff9a2ad30925daeb71480ae00b72d0c9 100644
+--- a/dist/ai/McpServer.js
++++ b/dist/ai/McpServer.js
+@@ -1129,7 +1129,7 @@ const layerMcpProtocolHttp = options => Layer.effect(RpcServer.Protocol)(Effect.
+       const response = Effect.map(httpEffect, response => {
+         // Completed responses may already contain notifications followed by the result.
+         const hasMultipleMessages = response.body._tag === "Uint8Array" && response.body.body.subarray(0, -1).includes(10);
+-        return admission.isSubscription || response.body._tag === "Stream" || hasMultipleMessages ? toServerSentEvents(response) : response;
++        return admission.isSubscription || response.body._tag === "Stream" || hasMultipleMessages ? toServerSentEvents(response, admission.isSubscription) : response;
+       });
+       return yield* admission.acknowledge ? Effect.catchCause(response, () => Effect.succeed(HttpServerResponse.empty({
+         status: 202
+@@ -1213,7 +1213,7 @@ function mcpJsonRpcSerialization(options) {
+     }
+   });
+ }
+-const toServerSentEvents = response => {
++const toServerSentEvents = (response, subscription = false) => {
+   const encoder = new TextEncoder();
+   const decoder = new TextDecoder();
+   const frame = data => encoder.encode(decoder.decode(data).trimEnd().split("\n").map(message => `data: ${message}\n\n`).join(""));
+@@ -1225,7 +1225,14 @@ const toServerSentEvents = response => {
+     contentType: "text/event-stream"
+   };
+   if (response.body._tag === "Stream") {
+-    return HttpServerResponse.stream(response.body.stream.pipe(Stream.map(frame)), options);
++    const messages = response.body.stream.pipe(Stream.map(frame));
++    const body = subscription
++      ? messages.pipe(Stream.merge(
++          Stream.tick("15 seconds").pipe(Stream.drop(1), Stream.map(() => encoder.encode(": keepalive\n\n"))),
++          { haltStrategy: "left" }
++        ))
++      : messages;
++    return HttpServerResponse.stream(body, options);
+   }
+   if (response.body._tag === "Uint8Array") {
+     return HttpServerResponse.uint8Array(frame(response.body.body), options);
+diff --git a/src/ai/McpServer.ts b/src/ai/McpServer.ts
+index a2de78b32c5d68609e6ba3984e97d541d79610ce..60ce27f4588df5d52fdd0ee8a042c2b52f17c8fe 100644
+--- a/src/ai/McpServer.ts
++++ b/src/ai/McpServer.ts
+@@ -1620,7 +1620,7 @@ const layerMcpProtocolHttp = (options: {
+           const hasMultipleMessages = response.body._tag === "Uint8Array" &&
+             response.body.body.subarray(0, -1).includes(10)
+           return admission.isSubscription || response.body._tag === "Stream" || hasMultipleMessages
+-            ? toServerSentEvents(response)
++            ? toServerSentEvents(response, admission.isSubscription)
+             : response
+         })
+         return yield* admission.acknowledge
+@@ -1713,7 +1713,7 @@ function mcpJsonRpcSerialization(options?: {
+   })
+ }
+ 
+-const toServerSentEvents = (response: HttpServerResponse.HttpServerResponse) => {
++const toServerSentEvents = (response: HttpServerResponse.HttpServerResponse, subscription = false) => {
+   const encoder = new TextEncoder()
+   const decoder = new TextDecoder()
+   const frame = (data: Uint8Array) =>
+@@ -1726,7 +1726,19 @@ const toServerSentEvents = (response: HttpServerResponse.HttpServerResponse) =>
+     contentType: "text/event-stream"
+   }
+   if (response.body._tag === "Stream") {
+-    return HttpServerResponse.stream(response.body.stream.pipe(Stream.map(frame)), options)
++    const messages = response.body.stream.pipe(Stream.map(frame))
++    // SSE comments keep idle subscriptions live without creating MCP messages.
++    // End the timer with the response stream, including cancellation and failure.
++    const body = subscription
++      ? messages.pipe(Stream.merge(
++        Stream.tick("15 seconds").pipe(
++          Stream.drop(1),
++          Stream.map(() => encoder.encode(": keepalive\n\n"))
++        ),
++        { haltStrategy: "left" }
++      ))
++      : messages
++    return HttpServerResponse.stream(body, options)
+   }
+   if (response.body._tag === "Uint8Array") {
+     return HttpServerResponse.uint8Array(frame(response.body.body), options)

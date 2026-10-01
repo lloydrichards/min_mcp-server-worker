@@ -35,6 +35,9 @@
       "version": "0.0.0",
     },
   },
+  "patchedDependencies": {
+    "effect@4.0.0": "patches/effect@4.0.0.patch",
+  },
   "overrides": {
     "@effect/platform-node-shared": "4.0.0",
     "wrangler": "4.103.0",
