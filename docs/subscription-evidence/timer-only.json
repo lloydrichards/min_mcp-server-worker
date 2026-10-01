@@ -1,0 +1,7 @@
+{
+  "mode": "timer-only",
+  "seconds": 12.015,
+  "curlExit": 28,
+  "body": "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/acknowledged\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-repro\"},\"notifications\":{\"toolsListChanged\":true}}}\n\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-repro\"}}}\n\n",
+  "stderr": "curl: (28) Operation timed out after 12006 milliseconds with 342 bytes received\n"
+}

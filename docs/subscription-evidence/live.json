@@ -1,0 +1,23 @@
+[
+  {
+    "trial": 1,
+    "seconds": 0.072,
+    "curlExit": 0,
+    "body": "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/acknowledged\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-live\"},\"notifications\":{}}}\n\n",
+    "stderr": ""
+  },
+  {
+    "trial": 2,
+    "seconds": 0.051,
+    "curlExit": 0,
+    "body": "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/acknowledged\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-live\"},\"notifications\":{}}}\n\n",
+    "stderr": ""
+  },
+  {
+    "trial": 3,
+    "seconds": 0.056,
+    "curlExit": 0,
+    "body": "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/acknowledged\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-live\"},\"notifications\":{}}}\n\n",
+    "stderr": ""
+  }
+]

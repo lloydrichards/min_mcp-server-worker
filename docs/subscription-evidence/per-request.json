@@ -1,0 +1,7 @@
+{
+  "mode": "per-request",
+  "seconds": 0.036,
+  "curlExit": 0,
+  "body": "data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/subscriptions/acknowledged\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-repro\"},\"notifications\":{\"toolsListChanged\":true}}}\n\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\",\"params\":{\"_meta\":{\"io.modelcontextprotocol/subscriptionId\":\"listen-repro\"}}}\n\n",
+  "stderr": ""
+}
