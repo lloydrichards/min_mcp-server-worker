@@ -1,0 +1,37 @@
+{
+  "name": "min_mcp-server-worker",
+  "private": true,
+  "type": "module",
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0"
+  },
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "build": "vp run -r build",
+    "dev": "vp run -r --parallel --no-cache dev",
+    "type-check": "vp run -r type-check",
+    "clean": "vp cache clean && vp run --no-cache --filter \"./apps/*\" --filter \"./packages/*\" clean && git clean -xdf node_modules .cache dist tsconfig.tsbuildinfo",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "vp lint",
+    "lint:fix": "vp lint --fix",
+    "test": "vp run -r test",
+    "prepare": "effect-tsgo patch --oxlint"
+  },
+  "devDependencies": {
+    "vite-plus": "0.3.0",
+    "oxfmt": "^0.65.0",
+    "oxlint": "1.80.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "vitest": "^4.1.11",
+    "@effect/tsgo": "0.38.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
